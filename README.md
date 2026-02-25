@@ -1,73 +1,117 @@
-# React + TypeScript + Vite
+# NDLOCR-Lite Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**ブラウザで動く日本語OCRツール**
 
-Currently, two official plugins are available:
+本ツールは、国立国会図書館（NDL）が開発・公開している **[NDLOCR-Lite](https://github.com/ndl-lab/ndlocr-lite)**（NDL Lab）を元にして、WebブラウザのみでOCR処理が完結するよう移植・再実装したものです。OCRモデル（DEIMv2・PARSeq）はすべて NDLOCR-Lite のものをそのまま利用しており、本ツールはそのWebフロントエンドとして機能します。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**サイト**: https://ndlocr-liteweb.netlify.app/
+**元リポジトリ**: https://github.com/ndl-lab/ndlocr-lite（国立国会図書館）
 
-## React Compiler
+## 特徴
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **ブラウザ完結** — 画像・OCR結果を外部サーバーに送信しません。すべての処理がブラウザ内で完結します。
+- **高精度レイアウト認識** — DEIMv2 モデルによりテキスト行の矩形領域を自動検出します。
+- **カスケード文字認識** — 行の文字数に応じて3種類の PARSeq モデルを使い分け、精度を最適化します。
+- **PDF対応** — 複数ページのPDFを一括処理できます。
+- **バッチ処理** — 複数の画像ファイルやフォルダをまとめて処理できます。
+- **結果のキャッシュ** — IndexedDB にモデルと処理結果（最新100件）を保存し、再利用できます。
+- **領域選択** — マウスドラッグで任意の矩形領域を選択し、テキストを確認できます。
+- **日英対応** — 日本語・英語のUI切替ができます。
 
-## Expanding the ESLint configuration
+## 使い方
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. **https://ndlocr-liteweb.netlify.app/** をブラウザで開く
+2. 初回起動時にONNXモデル（計約146MB）を自動ダウンロード・IndexedDBにキャッシュ
+3. 画像（JPG/PNG）またはPDFをドラッグ&ドロップするか、クリックして選択
+4. OCR処理が完了するとテキストが表示される
+5. 「コピー」「ダウンロード」ボタンでテキストを出力
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 対応ファイル形式
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+| 形式 | 説明 |
+|------|------|
+| JPEG/PNG | 一般的な画像ファイル |
+| PDF | 複数ページ対応（各ページを 2倍スケールでレンダリング） |
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 技術情報
+
+### 使用モデル（ndlocr-lite より）
+
+| モデル | ファイル | サイズ | 用途 |
+|--------|---------|--------|------|
+| DEIMv2 | `deim-s-1024x1024.onnx` | 38MB | レイアウト検出（テキスト行の矩形認識） |
+| PARSeq-30 | `parseq-ndl-30.onnx` | 34MB | 文字認識（≤30文字行、入力サイズ 16×256） |
+| PARSeq-50 | `parseq-ndl-50.onnx` | 35MB | 文字認識（≤50文字行、入力サイズ 16×384） |
+| PARSeq-100 | `parseq-ndl-100.onnx` | 39MB | 文字認識（≤100文字行、入力サイズ 16×768） |
+
+DEIMv2 は行ごとに文字数カテゴリ（1/2/3）を予測し、それに応じて最適な PARSeq モデルを選択するカスケード方式で処理します。
+
+### 技術スタック
+
+| 要素 | 技術 |
+|------|------|
+| フレームワーク | Vite + React 19 + TypeScript |
+| OCRランタイム | onnxruntime-web 1.20.0（WASM CPU バックエンド） |
+| PDF処理 | pdfjs-dist 4.9.0 |
+| OCR処理 | Web Worker（UIをブロックしない非同期処理） |
+| モデルキャッシュ | IndexedDB |
+| デプロイ | Netlify（COOP/COEP ヘッダー対応） |
+
+### OCR処理フロー
+
+```
+入力ファイル（JPG/PNG/PDF）
+  ↓ imageLoader / pdfLoader → ImageData
+  ↓ Web Worker
+  1. DEIMv2レイアウト検出
+     → テキスト行の矩形 + 文字数カテゴリ を取得
+  2. カスケード文字認識（PARSeq × 3モデル）
+     → charCountCategory=3 → PARSeq-30
+     → charCountCategory=2 → PARSeq-50
+     → その他          → PARSeq-100
+  3. 読み順ソート（縦書き右→左）
+  ↓ メインスレッド
+  結果表示 + IndexedDB保存
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## ローカル開発
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+# 依存関係インストール
+npm install
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# モデルファイルを配置（ndlocr-lite から取得）
+cp /path/to/ndlocr-lite/src/model/deim-s-1024x1024.onnx        public/models/
+cp /path/to/ndlocr-lite/src/model/parseq-ndl-16x256-30-*.onnx  public/models/parseq-ndl-30.onnx
+cp /path/to/ndlocr-lite/src/model/parseq-ndl-16x384-50-*.onnx  public/models/parseq-ndl-50.onnx
+cp /path/to/ndlocr-lite/src/model/parseq-ndl-16x768-100-*.onnx public/models/parseq-ndl-100.onnx
+
+# 開発サーバー起動
+npm run dev
+
+# ビルド
+npm run build
 ```
+
+> **Note**: COOP/COEP ヘッダーが必要なため、`npm run dev` で起動した開発サーバー（`localhost:5173`）で動作確認してください。単純なファイル開き（`file://`）では動作しません。
+
+## 注意事項
+
+- 初回起動時に約 **146MB** のONNXモデルをダウンロードします（2回目以降はキャッシュから読み込み）
+- 処理時間はハードウェア性能に依存します（GPU加速なしのCPU推論のため、1枚あたり数十秒かかる場合があります）
+- 対応ブラウザ: WebAssembly・IndexedDB・Web Worker に対応した最新ブラウザ（Chrome/Firefox/Safari/Edge 推奨）
+
+## 帰属・クレジット
+
+本ツールは **[NDLOCR-Lite](https://github.com/ndl-lab/ndlocr-lite)**（国立国会図書館 NDL Lab）の派生物です。OCRモデル（重みファイル）・文字セット・推論アルゴリズムはすべて NDLOCR-Lite に帰属します。
+
+- **NDLOCR-Lite**: [ndl-lab/ndlocr-lite](https://github.com/ndl-lab/ndlocr-lite)（国立国会図書館）
+- DEIMv2: [ShihuaHuang95/DEIM](https://github.com/ShihuaHuang95/DEIM)
+- PARSeq: [baudm/parseq](https://github.com/baudm/parseq)
+- 文字セット（NDLmoji.yaml）: 国立国会図書館
+
+## 作成者
+
+橋本雄太（国立歴史民俗博物館 / 国立国会図書館 非常勤調査員）
+
+- GitHub: [yuta1984/ndlocrlite-web](https://github.com/yuta1984/ndlocrlite-web)

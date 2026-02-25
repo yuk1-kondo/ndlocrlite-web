@@ -512,5 +512,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   flex-wrap: wrap;
 }
 
+.footer-attribution {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.4rem;
+  line-height: 1.5;
+}
+.footer-attribution-text a { color: var(--color-primary); }
+
 .footer-author { font-size: 0.75rem; color: var(--color-text-secondary); }
 .footer-github { font-size: 0.75rem; }
