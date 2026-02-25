@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { OCRResult, TextBlock } from './types/ocr'
-import type { DBResultEntry } from './types/db'
+import type { DBRunEntry } from './types/db'
 import { useI18n } from './hooks/useI18n'
 import { useOCRWorker } from './hooks/useOCRWorker'
 import { useFileProcessor } from './hooks/useFileProcessor'
@@ -21,7 +21,7 @@ export default function App() {
   const { lang, toggleLanguage } = useI18n()
   const { isReady, jobState, processImage, resetState } = useOCRWorker()
   const { processedImages, isLoading: isLoadingFiles, processFiles, clearImages } = useFileProcessor()
-  const { results: historyResults, saveResult, clearResults } = useResultCache()
+  const { runs: historyRuns, saveRun, clearResults } = useResultCache()
 
   const [sessionResults, setSessionResults] = useState<OCRResult[]>([])
   const [selectedResultIndex, setSelectedResultIndex] = useState(0)
@@ -46,29 +46,39 @@ export default function App() {
       setSelectedResultIndex(0)
       resetState()
 
-      const results: OCRResult[] = []
+      const runId = crypto.randomUUID()
+      const runCreatedAt = Date.now()
+      const successItems: Array<{ result: OCRResult; thumbnailDataUrl: string }> = []
+      const sessionResultsAccum: OCRResult[] = []
+
       for (let i = 0; i < processedImages.length; i++) {
         const image = processedImages[i]
         try {
           const result = await processImage(image, i, processedImages.length)
-          results.push(result)
-          setSessionResults([...results])
-          setSelectedResultIndex(results.length - 1)
-
-          const entry: DBResultEntry = {
-            id: result.id,
-            fileName: result.fileName,
-            imageDataUrl: image.thumbnailDataUrl,
-            textBlocks: result.textBlocks,
-            fullText: result.fullText,
-            processingTimeMs: result.processingTimeMs,
-            createdAt: result.createdAt,
-          }
-          await saveResult(entry)
+          successItems.push({ result, thumbnailDataUrl: image.thumbnailDataUrl })
+          sessionResultsAccum.push(result)
+          setSessionResults([...sessionResultsAccum])
+          setSelectedResultIndex(sessionResultsAccum.length - 1)
         } catch (err) {
           console.error(`OCR failed for ${image.fileName}:`, err)
         }
       }
+
+      if (successItems.length > 0) {
+        const runEntry: DBRunEntry = {
+          id: runId,
+          files: successItems.map(({ result, thumbnailDataUrl }) => ({
+            fileName: result.fileName,
+            imageDataUrl: thumbnailDataUrl,
+            textBlocks: result.textBlocks,
+            fullText: result.fullText,
+            processingTimeMs: result.processingTimeMs,
+          })),
+          createdAt: runCreatedAt,
+        }
+        await saveRun(runEntry)
+      }
+
       setIsProcessing(false)
     }
 
@@ -84,17 +94,17 @@ export default function App() {
     setIsProcessing(false)
   }
 
-  const handleHistorySelect = (entry: DBResultEntry) => {
-    const result: OCRResult = {
-      id: entry.id,
-      fileName: entry.fileName,
-      imageDataUrl: entry.imageDataUrl,
-      textBlocks: entry.textBlocks,
-      fullText: entry.fullText,
-      processingTimeMs: entry.processingTimeMs,
-      createdAt: entry.createdAt,
-    }
-    setSessionResults([result])
+  const handleHistorySelect = (run: DBRunEntry) => {
+    const restoredResults: OCRResult[] = run.files.map((file, i) => ({
+      id: `${run.id}-${i}`,
+      fileName: file.fileName,
+      imageDataUrl: file.imageDataUrl,
+      textBlocks: file.textBlocks,
+      fullText: file.fullText,
+      processingTimeMs: file.processingTimeMs,
+      createdAt: run.createdAt,
+    }))
+    setSessionResults(restoredResults)
     setSelectedResultIndex(0)
     setSelectedBlock(null)
     setShowHistory(false)
@@ -189,7 +199,7 @@ export default function App() {
 
       {showHistory && (
         <HistoryPanel
-          results={historyResults}
+          runs={historyRuns}
           onSelect={handleHistorySelect}
           onClear={clearResults}
           onClose={() => setShowHistory(false)}

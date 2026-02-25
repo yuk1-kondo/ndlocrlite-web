@@ -7,12 +7,18 @@ export interface DBModelEntry {
   version: string // モデルのバージョン管理用
 }
 
-export interface DBResultEntry {
-  id: string
+// 1回の実行に含まれる1ファイル分の結果
+export interface DBRunFile {
   fileName: string
   imageDataUrl: string // 縮小サムネイル (base64)
   textBlocks: TextBlock[]
   fullText: string
   processingTimeMs: number
-  createdAt: number // Unix timestamp (ms)
+}
+
+// 1回の実行（複数ファイルをまとめた単位）
+export interface DBRunEntry {
+  id: string         // runId (UUID)
+  files: DBRunFile[] // この実行で処理したファイル一覧
+  createdAt: number  // Unix timestamp (ms)
 }

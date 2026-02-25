@@ -1,15 +1,15 @@
 import { useState } from 'react'
-import type { DBResultEntry } from '../../types/db'
+import type { DBRunEntry } from '../../types/db'
 
 interface HistoryPanelProps {
-  results: DBResultEntry[]
-  onSelect: (entry: DBResultEntry) => void
+  runs: DBRunEntry[]
+  onSelect: (entry: DBRunEntry) => void
   onClear: () => void
   onClose: () => void
   lang: 'ja' | 'en'
 }
 
-export function HistoryPanel({ results, onSelect, onClear, onClose, lang }: HistoryPanelProps) {
+export function HistoryPanel({ runs, onSelect, onClear, onClose, lang }: HistoryPanelProps) {
   const [confirmClear, setConfirmClear] = useState(false)
 
   const handleClear = () => {
@@ -40,30 +40,43 @@ export function HistoryPanel({ results, onSelect, onClear, onClose, lang }: Hist
         </div>
 
         <div className="panel-body">
-          {results.length === 0 ? (
+          {runs.length === 0 ? (
             <p className="empty-message">
               {lang === 'ja' ? '処理履歴がありません' : 'No history yet'}
             </p>
           ) : (
             <ul className="history-list">
-              {results.map((entry) => (
-                <li key={entry.id} className="history-item" onClick={() => onSelect(entry)}>
-                  <img
-                    src={entry.imageDataUrl}
-                    alt={entry.fileName}
-                    className="history-thumb"
-                  />
-                  <div className="history-info">
-                    <span className="history-filename">{entry.fileName}</span>
-                    <span className="history-date">{formatDate(entry.createdAt)}</span>
-                    <span className="history-preview">
-                      {entry.fullText
-                        ? entry.fullText.slice(0, 60) + '...'
-                        : (lang === 'ja' ? 'テキストなし' : 'No text')}
-                    </span>
-                  </div>
-                </li>
-              ))}
+              {runs.map((run) => {
+                const firstFile = run.files[0]
+                const fileCount = run.files.length
+                const previewText = run.files.map(f => f.fullText).join(' ').slice(0, 60)
+                return (
+                  <li key={run.id} className="history-item" onClick={() => onSelect(run)}>
+                    {firstFile && (
+                      <img
+                        src={firstFile.imageDataUrl}
+                        alt={firstFile.fileName}
+                        className="history-thumb"
+                      />
+                    )}
+                    <div className="history-info">
+                      <span className="history-filename">
+                        {fileCount === 1
+                          ? firstFile?.fileName
+                          : lang === 'ja'
+                            ? `${firstFile?.fileName} 他${fileCount - 1}件`
+                            : `${firstFile?.fileName} +${fileCount - 1} more`}
+                      </span>
+                      <span className="history-date">{formatDate(run.createdAt)}</span>
+                      <span className="history-preview">
+                        {previewText
+                          ? previewText + '...'
+                          : (lang === 'ja' ? 'テキストなし' : 'No text')}
+                      </span>
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
@@ -72,7 +85,7 @@ export function HistoryPanel({ results, onSelect, onClear, onClose, lang }: Hist
           <button
             className={`btn ${confirmClear ? 'btn-danger' : 'btn-secondary'}`}
             onClick={handleClear}
-            disabled={results.length === 0}
+            disabled={runs.length === 0}
           >
             {confirmClear
               ? (lang === 'ja' ? '本当に削除しますか？' : 'Confirm delete?')

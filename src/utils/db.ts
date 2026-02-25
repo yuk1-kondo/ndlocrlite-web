@@ -1,13 +1,13 @@
 /**
  * IndexedDB 低レベル操作
- * DB名: NDLOCRLiteDB, Version: 1
- * ストア: models (ONNXモデルキャッシュ), results (OCR結果履歴)
+ * DB名: NDLOCRLiteDB, Version: 2
+ * ストア: models (ONNXモデルキャッシュ), results (OCR実行履歴)
  */
 
-import type { DBResultEntry } from '../types/db'
+import type { DBRunEntry } from '../types/db'
 
 const DB_NAME = 'NDLOCRLiteDB'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const RESULTS_MAX = 100
 
 let dbInstance: IDBDatabase | null = null
@@ -31,24 +31,26 @@ export function initDB(): Promise<IDBDatabase> {
         db.createObjectStore('models', { keyPath: 'name' })
       }
 
-      if (!db.objectStoreNames.contains('results')) {
-        const store = db.createObjectStore('results', { keyPath: 'id' })
-        store.createIndex('by_createdAt', 'createdAt', { unique: false })
+      // Version 2: results ストアを再作成（per-run スキーマに変更）
+      if (db.objectStoreNames.contains('results')) {
+        db.deleteObjectStore('results')
       }
+      const store = db.createObjectStore('results', { keyPath: 'id' })
+      store.createIndex('by_createdAt', 'createdAt', { unique: false })
     }
   })
 }
 
 // ---- results ストア ----
 
-export async function saveResult(entry: DBResultEntry): Promise<void> {
+export async function saveRun(entry: DBRunEntry): Promise<void> {
   const db = await initDB()
 
   // 100件制限: 超えたら最古を削除
-  const count = await countResults(db)
+  const count = await countRuns(db)
   if (count >= RESULTS_MAX) {
-    const oldest = await getOldestResult(db)
-    if (oldest) await deleteResult(db, oldest.id)
+    const oldest = await getOldestRun(db)
+    if (oldest) await deleteRun(db, oldest.id)
   }
 
   return new Promise((resolve, reject) => {
@@ -60,7 +62,7 @@ export async function saveResult(entry: DBResultEntry): Promise<void> {
   })
 }
 
-export async function getAllResults(): Promise<DBResultEntry[]> {
+export async function getAllRuns(): Promise<DBRunEntry[]> {
   const db = await initDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction('results', 'readonly')
@@ -68,7 +70,7 @@ export async function getAllResults(): Promise<DBResultEntry[]> {
     const index = store.index('by_createdAt')
     const req = index.getAll()
     req.onerror = () => reject(req.error)
-    req.onsuccess = () => resolve((req.result as DBResultEntry[]).reverse())
+    req.onsuccess = () => resolve((req.result as DBRunEntry[]).reverse())
   })
 }
 
@@ -83,7 +85,7 @@ export async function clearResults(): Promise<void> {
   })
 }
 
-async function countResults(db: IDBDatabase): Promise<number> {
+async function countRuns(db: IDBDatabase): Promise<number> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction('results', 'readonly')
     const store = tx.objectStore('results')
@@ -93,7 +95,7 @@ async function countResults(db: IDBDatabase): Promise<number> {
   })
 }
 
-async function getOldestResult(db: IDBDatabase): Promise<DBResultEntry | undefined> {
+async function getOldestRun(db: IDBDatabase): Promise<DBRunEntry | undefined> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction('results', 'readonly')
     const store = tx.objectStore('results')
@@ -102,12 +104,12 @@ async function getOldestResult(db: IDBDatabase): Promise<DBResultEntry | undefin
     req.onerror = () => reject(req.error)
     req.onsuccess = () => {
       const cursor = req.result
-      resolve(cursor ? (cursor.value as DBResultEntry) : undefined)
+      resolve(cursor ? (cursor.value as DBRunEntry) : undefined)
     }
   })
 }
 
-async function deleteResult(db: IDBDatabase, id: string): Promise<void> {
+async function deleteRun(db: IDBDatabase, id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction('results', 'readwrite')
     const store = tx.objectStore('results')

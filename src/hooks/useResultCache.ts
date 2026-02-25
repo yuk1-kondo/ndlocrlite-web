@@ -1,28 +1,28 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { DBResultEntry } from '../types/db'
-import { getAllResults, saveResult, clearResults } from '../utils/db'
+import type { DBRunEntry } from '../types/db'
+import { getAllRuns, saveRun, clearResults } from '../utils/db'
 
 export function useResultCache() {
-  const [results, setResults] = useState<DBResultEntry[]>([])
+  const [runs, setRuns] = useState<DBRunEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    getAllResults()
-      .then(setResults)
+    getAllRuns()
+      .then(setRuns)
       .catch(console.error)
       .finally(() => setIsLoading(false))
   }, [])
 
-  const save = useCallback(async (entry: DBResultEntry) => {
-    await saveResult(entry)
-    const updated = await getAllResults()
-    setResults(updated)
+  const save = useCallback(async (entry: DBRunEntry) => {
+    await saveRun(entry)
+    const updated = await getAllRuns()
+    setRuns(updated)
   }, [])
 
   const clear = useCallback(async () => {
     await clearResults()
-    setResults([])
+    setRuns([])
   }, [])
 
-  return { results, isLoading, saveResult: save, clearResults: clear }
+  return { runs, isLoading, saveRun: save, clearResults: clear }
 }
