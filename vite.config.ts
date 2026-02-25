@@ -1,0 +1,32 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+
+  // ONNX Runtime Web: Viteのesbuildプリバンドルを除外（WASMバイナリが壊れるのを防ぐ）
+  optimizeDeps: {
+    exclude: ['onnxruntime-web'],
+  },
+
+  // WASMとONNXファイルをアセットとして認識
+  assetsInclude: ['**/*.wasm', '**/*.onnx'],
+
+  build: {
+    target: 'esnext',
+  },
+
+  // Web WorkerをES moduleフォーマットで出力
+  worker: {
+    format: 'es',
+  },
+
+  server: {
+    // SharedArrayBuffer用のCOOP/COEPヘッダー（onnxruntime-webのマルチスレッド推論に必要）
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+  },
+})
