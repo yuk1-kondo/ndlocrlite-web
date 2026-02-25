@@ -10,9 +10,13 @@ interface ResultActionsProps {
 
 export function ResultActions({ results, currentResult, lang }: ResultActionsProps) {
   const [copied, setCopied] = useState(false)
+  const [includeFileName, setIncludeFileName] = useState(false)
+
+  const buildText = (result: OCRResult) =>
+    includeFileName ? `=== ${result.fileName} ===\n${result.fullText}` : result.fullText
 
   const handleCopy = async () => {
-    const text = currentResult?.fullText ?? ''
+    const text = currentResult ? buildText(currentResult) : ''
     try {
       await copyToClipboard(text)
       setCopied(true)
@@ -24,12 +28,12 @@ export function ResultActions({ results, currentResult, lang }: ResultActionsPro
 
   const handleDownload = () => {
     if (!currentResult) return
-    downloadText(currentResult.fullText, currentResult.fileName)
+    downloadText(buildText(currentResult), currentResult.fileName)
   }
 
   const handleDownloadAll = () => {
     if (results.length === 0) return
-    const allText = results.map((r) => `=== ${r.fileName} ===\n${r.fullText}`).join('\n\n')
+    const allText = results.map((r) => buildText(r)).join('\n\n')
     downloadText(allText, 'ocr_results')
   }
 
@@ -37,17 +41,27 @@ export function ResultActions({ results, currentResult, lang }: ResultActionsPro
 
   return (
     <div className="result-actions">
-      <button className="btn btn-primary" onClick={handleCopy} disabled={disabled}>
-        {copied ? (lang === 'ja' ? 'コピーしました！' : 'Copied!') : (lang === 'ja' ? 'コピー' : 'Copy')}
-      </button>
-      <button className="btn btn-secondary" onClick={handleDownload} disabled={disabled}>
-        {lang === 'ja' ? 'ダウンロード' : 'Download'}
-      </button>
-      {results.length > 1 && (
-        <button className="btn btn-secondary" onClick={handleDownloadAll}>
-          {lang === 'ja' ? '全てダウンロード' : 'Download All'}
+      <label className="result-actions-option">
+        <input
+          type="checkbox"
+          checked={includeFileName}
+          onChange={(e) => setIncludeFileName(e.target.checked)}
+        />
+        {lang === 'ja' ? 'ファイル名を記載する' : 'Include file name'}
+      </label>
+      <div className="result-actions-buttons">
+        <button className="btn btn-primary" onClick={handleCopy} disabled={disabled}>
+          {copied ? (lang === 'ja' ? 'コピーしました！' : 'Copied!') : (lang === 'ja' ? 'コピー' : 'Copy')}
         </button>
-      )}
+        <button className="btn btn-secondary" onClick={handleDownload} disabled={disabled}>
+          {lang === 'ja' ? 'ダウンロード' : 'Download'}
+        </button>
+        {results.length > 1 && (
+          <button className="btn btn-secondary" onClick={handleDownloadAll}>
+            {lang === 'ja' ? '全てダウンロード' : 'Download All'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
