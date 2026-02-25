@@ -1,18 +1,21 @@
 /**
  * ONNX Runtime Web 設定
  * Web Worker内での統一設定
+ *
+ * onnxruntime-web/wasm を使用（JSEP/WebGPU不要、CPU専用）
+ * Viteの?url importでWASMのハッシュ付きURLを取得し、
+ * CDN不要・COEP対応の同一オリジン配信を実現する
  */
 
-import * as ort from 'onnxruntime-web'
+import * as ort from 'onnxruntime-web/wasm'
+import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url'
 
 function initializeONNX() {
-  // WASMファイルをCDNから配信（安定性重視）
-  ort.env.wasm.wasmPaths =
-    'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/'
+  // Viteがバンドルしたハッシュ付きURLを指定（CDN不要・COEP対応）
+  ort.env.wasm.wasmPaths = { wasm: wasmUrl }
 
-  // シングルスレッド・SIMD無効でより安定した動作を確保
+  // シングルスレッドで安定動作
   ort.env.wasm.numThreads = 1
-  ort.env.wasm.simd = false
   ort.env.logLevel = 'warning'
 
   // Web Worker内ではプロキシワーカー不要
@@ -24,7 +27,7 @@ export async function createSession(
   options: Partial<ort.InferenceSession.SessionOptions> = {}
 ): Promise<ort.InferenceSession> {
   const defaultOptions: ort.InferenceSession.SessionOptions = {
-    executionProviders: ['cpu'],
+    executionProviders: ['wasm'],
     logSeverityLevel: 4,
     graphOptimizationLevel: 'basic',
     enableCpuMemArena: false,

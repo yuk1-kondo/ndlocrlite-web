@@ -1,12 +1,22 @@
 /**
- * レイアウト検出モジュール
- * RTMDet-sモデルを使用してテキスト領域を検出
- * 参照実装: ndlkotenocr-worker/src/worker/layout-detector.js
+ * レイアウト検出モジュール（DEIMv2モデル）
+ * 参照実装: ndlocr-lite/src/deim.py
+ *
+ * DEIMモデルの入出力:
+ *   入力[0]: 画像テンソル [1, 3, H, W] (ImageNet正規化)
+ *   入力[1]: im_shape [[H, W]] (int64)
+ *   出力[0]: class_ids (1-indexed)
+ *   出力[1]: bboxes [N, 4] (x1,y1,x2,y2 in input pixel space)
+ *   出力[2]: scores
+ *   出力[3]: char_counts (1.0/2.0/3.0 のカテゴリ、省略時は100.0)
  */
 
 import type * as OrtType from 'onnxruntime-web'
 import { ort, createSession } from './onnx-config'
 import type { TextRegion } from '../types/ocr'
+
+// ndl.yaml の line クラスID (0-indexed, class_index = label - 1)
+const LINE_CLASS_IDS = new Set([1, 2, 3, 4, 5, 16]) // line_main, line_caption, line_ad, line_note, line_note_tochu, line_title
 
 interface PreprocessResult {
   tensor: OrtType.Tensor
@@ -21,7 +31,8 @@ interface PreprocessResult {
 
 export class LayoutDetector {
   private session: OrtType.InferenceSession | null = null
-  private inputSize = { width: 1024, height: 1024 }
+  // deim-s-1024x1024.onnx の実際の入力サイズ（ファイル名は 1024 だが実体は 800x800）
+  private inputSize = { width: 800, height: 800 }
   private initialized = false
 
   async initialize(modelData: ArrayBuffer): Promise<void> {
@@ -30,7 +41,7 @@ export class LayoutDetector {
     try {
       this.session = await createSession(modelData)
       this.initialized = true
-      console.log('Layout detector initialized successfully')
+      console.log(`Layout detector initialized: input ${this.inputSize.width}×${this.inputSize.height}`)
     } catch (error) {
       console.error('Failed to initialize layout detector:', error)
       throw error
@@ -49,13 +60,27 @@ export class LayoutDetector {
     const { tensor, metadata } = await this.preprocessImage(imageData)
 
     if (onProgress) onProgress(0.5)
-    const output = await this.session.run({ input: tensor })
+
+    // DEIMモデルは2入力: 画像テンソル + im_shape
+    const inputNames = this.session.inputNames
+    const inputs: Record<string, OrtType.Tensor> = {
+      [inputNames[0]]: tensor,
+    }
+    if (inputNames.length > 1) {
+      inputs[inputNames[1]] = new ort.Tensor(
+        'int64',
+        BigInt64Array.from([BigInt(this.inputSize.height), BigInt(this.inputSize.width)]),
+        [1, 2]
+      )
+    }
+
+    const output = await this.session.run(inputs)
 
     if (onProgress) onProgress(0.8)
     const detections = this.postprocessOutput(output, metadata)
 
     if (onProgress) onProgress(1.0)
-    console.log(`[LayoutDetector] ${detections.length} regions detected`)
+    console.log(`[LayoutDetector] ${detections.length} line regions detected`)
     return detections
   }
 
@@ -133,67 +158,55 @@ export class LayoutDetector {
     const detections: TextRegion[] = []
 
     try {
-      const outputKeys = Object.keys(output)
+      const outputNames = this.session!.outputNames
 
-      let detsData: number[]
-      let labelsData: number[]
+      // DEIMモデルは4出力: class_ids, bboxes, scores, char_counts
+      const classIdsRaw = output[outputNames[0]].data
+      const bboxesData = output[outputNames[1]].data as Float32Array
+      const scoresData = output[outputNames[2]].data as Float32Array
+      const charCountsData = outputNames.length > 3
+        ? (output[outputNames[3]].data as Float32Array)
+        : null
 
-      if (output['dets'] && output['labels']) {
-        detsData = Array.from(output['dets'].data as Float32Array)
-        const rawLabels = output['labels'].data as Float32Array | BigInt64Array
-        labelsData = Array.from({ length: rawLabels.length }, (_, i) => Number(rawLabels[i]))
-      } else {
-        const outputTensor = output[outputKeys[0]]
-        const outputData = outputTensor.data as Float32Array
-        const numDetections = outputTensor.dims[1]
-        detsData = []
-        labelsData = []
-        for (let i = 0; i < numDetections; i++) {
-          const offset = i * 6
-          for (let j = 0; j < 5; j++) {
-            detsData.push(outputData[offset + j])
-          }
-          labelsData.push(outputData[offset + 5] || 0)
-        }
-      }
+      const numDetections = scoresData.length
 
-      const numDetections = detsData.length / 5
+      // deim.py と同じスケール計算:
+      // bboxes は [0, inputSize] 範囲 → [0, maxWH] に変換
+      const scaleX = metadata.maxWH / this.inputSize.width
+      const scaleY = metadata.maxWH / this.inputSize.height
+
+      const confThreshold = 0.3
 
       for (let i = 0; i < numDetections; i++) {
-        const x1 = detsData[i * 5 + 0]
-        const y1 = detsData[i * 5 + 1]
-        const x2 = detsData[i * 5 + 2]
-        const y2 = detsData[i * 5 + 3]
-        const score = detsData[i * 5 + 4]
-        const classId = Number(labelsData[i])
+        const score = scoresData[i]
+        if (score < confThreshold) continue
 
-        if (score < 0.3) continue
+        // class_ids は 1-indexed → 0-indexed に変換
+        const classId = Number(classIdsRaw[i]) - 1
 
-        // 入力サイズ → 元画像サイズに座標変換
-        const normX1 = x1 / this.inputSize.width
-        const normY1 = y1 / this.inputSize.height
-        const normX2 = x2 / this.inputSize.width
-        const normY2 = y2 / this.inputSize.height
+        // ラインクラスのみ処理
+        if (!LINE_CLASS_IDS.has(classId)) continue
 
-        const squareSize = metadata.maxWH
-        const origX1 = normX1 * squareSize
-        const origY1 = normY1 * squareSize
-        const origX2 = normX2 * squareSize
-        const origY2 = normY2 * squareSize
+        const x1 = bboxesData[i * 4 + 0] * scaleX
+        const y1 = bboxesData[i * 4 + 1] * scaleY
+        const x2 = bboxesData[i * 4 + 2] * scaleX
+        const y2 = bboxesData[i * 4 + 3] * scaleY
 
         // バウンディングボックスを上下2%拡張
-        const boxHeight = origY2 - origY1
+        const boxHeight = y2 - y1
         const deltaH = boxHeight * 0.02
 
-        const finalX1 = Math.max(0, Math.round(origX1))
-        const finalY1 = Math.max(0, Math.round(origY1 - deltaH))
-        const finalX2 = Math.min(metadata.originalWidth, Math.round(origX2))
-        const finalY2 = Math.min(metadata.originalHeight, Math.round(origY2 + deltaH))
+        const finalX1 = Math.max(0, Math.round(x1))
+        const finalY1 = Math.max(0, Math.round(y1 - deltaH))
+        const finalX2 = Math.min(metadata.originalWidth, Math.round(x2))
+        const finalY2 = Math.min(metadata.originalHeight, Math.round(y2 + deltaH))
 
         const width = finalX2 - finalX1
         const height = finalY2 - finalY1
 
         if (width < 10 || height < 10) continue
+
+        const charCountCategory = charCountsData ? charCountsData[i] : 100
 
         detections.push({
           x: finalX1,
@@ -202,50 +215,15 @@ export class LayoutDetector {
           height,
           confidence: score,
           classId,
+          charCountCategory,
         })
       }
 
-      return this.applyNMS(detections, 0.5)
+      return detections
     } catch (error) {
       console.error('Error in postprocessing:', error)
       return []
     }
-  }
-
-  private applyNMS(detections: TextRegion[], iouThreshold: number): TextRegion[] {
-    if (detections.length === 0) return []
-
-    detections.sort((a, b) => b.confidence - a.confidence)
-
-    const keep: TextRegion[] = []
-    const suppressed = new Set<number>()
-
-    for (let i = 0; i < detections.length; i++) {
-      if (suppressed.has(i)) continue
-      keep.push(detections[i])
-
-      for (let j = i + 1; j < detections.length; j++) {
-        if (suppressed.has(j)) continue
-        if (this.calculateIoU(detections[i], detections[j]) > iouThreshold) {
-          suppressed.add(j)
-        }
-      }
-    }
-
-    return keep
-  }
-
-  private calculateIoU(a: TextRegion, b: TextRegion): number {
-    const xA = Math.max(a.x, b.x)
-    const yA = Math.max(a.y, b.y)
-    const xB = Math.min(a.x + a.width, b.x + b.width)
-    const yB = Math.min(a.y + a.height, b.y + b.height)
-
-    const interArea = Math.max(0, xB - xA) * Math.max(0, yB - yA)
-    const aArea = a.width * a.height
-    const bArea = b.width * b.height
-
-    return interArea / (aArea + bArea - interArea)
   }
 
   dispose(): void {

@@ -8,6 +8,7 @@ export interface BoundingBox {
 export interface TextRegion extends BoundingBox {
   confidence: number
   classId: number
+  charCountCategory?: number // DEIMモデルが出力する文字数カテゴリ (1, 2, 3)
 }
 
 export interface TextBlock extends TextRegion {

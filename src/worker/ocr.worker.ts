@@ -2,6 +2,11 @@
  * OCR Web Worker
  * バックグラウンドでOCR処理を実行
  * 参照実装: ndlkotenocr-worker/src/worker/ocr-worker.js
+ *
+ * カスケード文字認識:
+ *   charCountCategory=3 → recognizer30 (16×256, ≤30文字)
+ *   charCountCategory=2 → recognizer50 (16×384, ≤50文字)
+ *   それ以外            → recognizer100 (16×768, ≤100文字)
  */
 
 import './onnx-config'
@@ -14,7 +19,9 @@ import type { WorkerInMessage, WorkerOutMessage } from '../types/worker'
 
 class OCRWorker {
   private layoutDetector: LayoutDetector | null = null
-  private textRecognizer: TextRecognizer | null = null
+  private recognizer30: TextRecognizer | null = null  // ≤30文字 [1,3,16,256]
+  private recognizer50: TextRecognizer | null = null  // ≤50文字 [1,3,16,384]
+  private recognizer100: TextRecognizer | null = null // ≤100文字 [1,3,16,768]
   private readingOrderProcessor = new ReadingOrderProcessor()
   private isInitialized = false
 
@@ -29,33 +36,61 @@ class OCRWorker {
       this.post({
         type: 'OCR_PROGRESS',
         stage: 'initializing',
-        progress: 0.05,
+        progress: 0.02,
         message: 'Initializing...',
       })
 
+      // レイアウトモデル (38MB)
       const layoutModelData = await loadModel('layout', (progress) => {
         this.post({
           type: 'OCR_PROGRESS',
           stage: 'loading_layout_model',
-          progress: 0.05 + progress * 0.4,
+          progress: 0.02 + progress * 0.23,
           message: `Loading layout model... ${Math.round(progress * 100)}%`,
         })
       })
 
-      const recognitionModelData = await loadModel('recognition', (progress) => {
+      // 認識モデル30 (34MB)
+      const rec30Data = await loadModel('recognition30', (progress) => {
         this.post({
           type: 'OCR_PROGRESS',
           stage: 'loading_recognition_model',
-          progress: 0.45 + progress * 0.4,
-          message: `Loading recognition model... ${Math.round(progress * 100)}%`,
+          progress: 0.25 + progress * 0.20,
+          message: `Loading recognition model (30)... ${Math.round(progress * 100)}%`,
+        })
+      })
+
+      // 認識モデル50 (35MB)
+      const rec50Data = await loadModel('recognition50', (progress) => {
+        this.post({
+          type: 'OCR_PROGRESS',
+          stage: 'loading_recognition_model',
+          progress: 0.45 + progress * 0.20,
+          message: `Loading recognition model (50)... ${Math.round(progress * 100)}%`,
+        })
+      })
+
+      // 認識モデル100 (39MB)
+      const rec100Data = await loadModel('recognition100', (progress) => {
+        this.post({
+          type: 'OCR_PROGRESS',
+          stage: 'loading_recognition_model',
+          progress: 0.65 + progress * 0.20,
+          message: `Loading recognition model (100)... ${Math.round(progress * 100)}%`,
         })
       })
 
       this.layoutDetector = new LayoutDetector()
       await this.layoutDetector.initialize(layoutModelData)
 
-      this.textRecognizer = new TextRecognizer()
-      await this.textRecognizer.initialize(recognitionModelData)
+      this.recognizer30 = new TextRecognizer([1, 3, 16, 256])
+      await this.recognizer30.initialize(rec30Data)
+
+      this.recognizer50 = new TextRecognizer([1, 3, 16, 384])
+      await this.recognizer50.initialize(rec50Data)
+
+      this.recognizer100 = new TextRecognizer([1, 3, 16, 768])
+      await this.recognizer100.initialize(rec100Data)
 
       this.isInitialized = true
 
@@ -73,6 +108,13 @@ class OCRWorker {
       })
       throw error
     }
+  }
+
+  /** charCountCategory に応じたモデルを選択 */
+  private selectRecognizer(charCountCategory?: number): TextRecognizer {
+    if (charCountCategory === 3) return this.recognizer30!
+    if (charCountCategory === 2) return this.recognizer50!
+    return this.recognizer100!
   }
 
   async processOCR(id: string, imageData: ImageData, startTime: number): Promise<void> {
@@ -103,7 +145,7 @@ class OCRWorker {
         }
       )
 
-      // Stage 2: 文字認識
+      // Stage 2: カスケード文字認識
       this.post({
         type: 'OCR_PROGRESS',
         id,
@@ -115,7 +157,8 @@ class OCRWorker {
       const recognitionResults: TextBlock[] = []
       for (let i = 0; i < textRegions.length; i++) {
         const region = textRegions[i]
-        const result = await this.textRecognizer!.recognize(imageData, region)
+        const recognizer = this.selectRecognizer(region.charCountCategory)
+        const result = await recognizer.recognize(imageData, region)
 
         recognitionResults.push({
           ...region,

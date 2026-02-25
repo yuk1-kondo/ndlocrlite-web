@@ -4,14 +4,15 @@
 
 import type { ProcessedImage } from '../types/ocr'
 import { makeThumbnailDataUrl } from './imageLoader'
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 let pdfjsLib: typeof import('pdfjs-dist') | null = null
 
 async function getPdfJs() {
   if (!pdfjsLib) {
     pdfjsLib = await import('pdfjs-dist')
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.9.0/build/pdf.worker.min.mjs'
+    // Viteがバンドルしたハッシュ付きURLを使用（CDN不要・COEP対応）
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
   }
   return pdfjsLib
 }

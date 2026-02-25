@@ -15,7 +15,10 @@ export const MODEL_VERSION = '1.0.0'
 // モデルファイルは public/models/ に配置する
 export const MODEL_URLS: Record<string, string> = {
   layout: '/models/deim-s-1024x1024.onnx',
-  recognition: '/models/parseq_ndl.onnx',
+  // カスケード文字認識モデル（行の文字数カテゴリに応じて使い分け）
+  recognition30: '/models/parseq-ndl-30.onnx',  // カテゴリ3: ≤30文字 [1,3,16,256]
+  recognition50: '/models/parseq-ndl-50.onnx',  // カテゴリ2: ≤50文字 [1,3,16,384]
+  recognition100: '/models/parseq-ndl-100.onnx', // カテゴリ1: ≤100文字 [1,3,16,768]
 }
 
 function initDB(): Promise<IDBDatabase> {

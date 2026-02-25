@@ -22,12 +22,16 @@ interface RecognitionResult {
 export class TextRecognizer {
   private session: OrtType.InferenceSession | null = null
   private initialized = false
-  private config: RecognizerConfig = {
-    inputShape: [1, 3, 32, 384],
-    charList: [],
-    maxLength: 25,
-  }
+  private config: RecognizerConfig
   private configPath = '/config/NDLmoji.yaml'
+
+  constructor(inputShape?: [number, number, number, number]) {
+    this.config = {
+      inputShape: inputShape ?? [1, 3, 16, 384],
+      charList: [],
+      maxLength: 25,
+    }
+  }
 
   async initialize(modelData: ArrayBuffer): Promise<void> {
     if (this.initialized) return

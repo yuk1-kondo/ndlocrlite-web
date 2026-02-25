@@ -7,7 +7,7 @@ export default defineConfig({
 
   // ONNX Runtime Web: Viteのesbuildプリバンドルを除外（WASMバイナリが壊れるのを防ぐ）
   optimizeDeps: {
-    exclude: ['onnxruntime-web'],
+    exclude: ['onnxruntime-web', 'onnxruntime-web/wasm'],
   },
 
   // WASMとONNXファイルをアセットとして認識
