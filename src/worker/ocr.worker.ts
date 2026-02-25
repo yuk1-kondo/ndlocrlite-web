@@ -40,55 +40,39 @@ class OCRWorker {
         message: 'Initializing...',
       })
 
-      // レイアウトモデル (38MB)
-      const layoutModelData = await loadModel('layout', (progress) => {
+      // 4モデルを並列ダウンロード（各モデルの進捗を合算してレポート）
+      const progresses = { layout: 0, rec30: 0, rec50: 0, rec100: 0 }
+      const reportProgress = () => {
+        const avg = (progresses.layout + progresses.rec30 + progresses.rec50 + progresses.rec100) / 4
         this.post({
           type: 'OCR_PROGRESS',
-          stage: 'loading_layout_model',
-          progress: 0.02 + progress * 0.23,
-          message: `Loading layout model... ${Math.round(progress * 100)}%`,
+          stage: 'loading_models',
+          progress: 0.02 + avg * 0.73,
+          message: `Loading models... ${Math.round(avg * 100)}%`,
         })
-      })
+      }
 
-      // 認識モデル30 (34MB)
-      const rec30Data = await loadModel('recognition30', (progress) => {
-        this.post({
-          type: 'OCR_PROGRESS',
-          stage: 'loading_recognition_model',
-          progress: 0.25 + progress * 0.20,
-          message: `Loading recognition model (30)... ${Math.round(progress * 100)}%`,
-        })
-      })
+      const [layoutModelData, rec30Data, rec50Data, rec100Data] = await Promise.all([
+        loadModel('layout',        (p) => { progresses.layout = p; reportProgress() }),
+        loadModel('recognition30', (p) => { progresses.rec30  = p; reportProgress() }),
+        loadModel('recognition50', (p) => { progresses.rec50  = p; reportProgress() }),
+        loadModel('recognition100',(p) => { progresses.rec100 = p; reportProgress() }),
+      ])
 
-      // 認識モデル50 (35MB)
-      const rec50Data = await loadModel('recognition50', (progress) => {
-        this.post({
-          type: 'OCR_PROGRESS',
-          stage: 'loading_recognition_model',
-          progress: 0.45 + progress * 0.20,
-          message: `Loading recognition model (50)... ${Math.round(progress * 100)}%`,
-        })
-      })
-
-      // 認識モデル100 (39MB)
-      const rec100Data = await loadModel('recognition100', (progress) => {
-        this.post({
-          type: 'OCR_PROGRESS',
-          stage: 'loading_recognition_model',
-          progress: 0.65 + progress * 0.20,
-          message: `Loading recognition model (100)... ${Math.round(progress * 100)}%`,
-        })
-      })
-
+      // ONNXセッション作成（WASMシングルスレッドのため直列）
+      this.post({ type: 'OCR_PROGRESS', stage: 'initializing_models', progress: 0.76, message: 'Preparing layout model...' })
       this.layoutDetector = new LayoutDetector()
       await this.layoutDetector.initialize(layoutModelData)
 
+      this.post({ type: 'OCR_PROGRESS', stage: 'initializing_models', progress: 0.83, message: 'Preparing recognition model (30)...' })
       this.recognizer30 = new TextRecognizer([1, 3, 16, 256])
       await this.recognizer30.initialize(rec30Data)
 
+      this.post({ type: 'OCR_PROGRESS', stage: 'initializing_models', progress: 0.90, message: 'Preparing recognition model (50)...' })
       this.recognizer50 = new TextRecognizer([1, 3, 16, 384])
       await this.recognizer50.initialize(rec50Data)
 
+      this.post({ type: 'OCR_PROGRESS', stage: 'initializing_models', progress: 0.96, message: 'Preparing recognition model (100)...' })
       this.recognizer100 = new TextRecognizer([1, 3, 16, 768])
       await this.recognizer100.initialize(rec100Data)
 
