@@ -36,11 +36,49 @@ export default function App() {
     await processFiles(files)
   }, [processFiles])
 
+  // Ctrl+V / Cmd+V でクリップボードの画像を貼り付け（アップロード画面表示中のみ）
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      if (sessionResults.length > 0 || isLoadingFiles || isProcessing) return
+      const items = e.clipboardData?.items
+      if (!items) return
+      const files: File[] = []
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) files.push(file)
+        }
+      }
+      if (files.length > 0) handleFilesSelected(files)
+    }
+    document.addEventListener('paste', handleGlobalPaste)
+    return () => document.removeEventListener('paste', handleGlobalPaste)
+  }, [sessionResults.length, isLoadingFiles, isProcessing, handleFilesSelected])
+
   const handleSampleLoad = useCallback(async () => {
     const res = await fetch('/kumonoito.png')
     const blob = await res.blob()
     const file = new File([blob], 'kumonoito.png', { type: 'image/png' })
     await processFiles([file])
+  }, [processFiles])
+
+  const handlePasteFromClipboard = useCallback(async () => {
+    try {
+      const items = await navigator.clipboard.read()
+      const files: File[] = []
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type)
+            const ext = type.split('/')[1] || 'png'
+            files.push(new File([blob], `clipboard.${ext}`, { type }))
+          }
+        }
+      }
+      if (files.length > 0) await processFiles(files)
+    } catch {
+      // permission denied or no image in clipboard — ignore silently
+    }
   }, [processFiles])
 
   // processedImages更新時に自動でOCR開始
@@ -136,6 +174,9 @@ export default function App() {
             <FileDropZone onFilesSelected={handleFilesSelected} lang={lang} disabled={isWorking} />
             <div className="upload-actions">
               <DirectoryPicker onFilesSelected={handleFilesSelected} lang={lang} disabled={isWorking} />
+              <button className="btn btn-secondary" onClick={handlePasteFromClipboard} disabled={isWorking}>
+                {lang === 'ja' ? 'クリップボードから貼り付け' : 'Paste from Clipboard'}
+              </button>
               <button className="btn btn-secondary" onClick={handleSampleLoad} disabled={isWorking}>
                 {lang === 'ja' ? 'サンプルを試す' : 'Try Sample'}
               </button>

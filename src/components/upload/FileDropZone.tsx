@@ -40,7 +40,7 @@ export function FileDropZone({ onFilesSelected, lang, disabled = false }: FileDr
           : 'Drag & drop files here, or click to select'}
       </p>
       <p className="dropzone-formats">
-        {lang === 'ja' ? '対応形式: JPG, PNG, PDF' : 'Supported: JPG, PNG, PDF'}
+        {lang === 'ja' ? '対応形式: JPG, PNG, PDF · Ctrl+V で貼り付け可' : 'Supported: JPG, PNG, PDF · Ctrl+V to paste'}
       </p>
       <input
         ref={inputRef}
