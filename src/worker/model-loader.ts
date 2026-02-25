@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'NDLOCRLiteDB'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NAME = 'models'
 
 // モデルのバージョン（URLが変わったらここを更新）
@@ -33,10 +33,12 @@ function initDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('models')) {
         db.createObjectStore('models', { keyPath: 'name' })
       }
-      if (!db.objectStoreNames.contains('results')) {
-        const resultsStore = db.createObjectStore('results', { keyPath: 'id' })
-        resultsStore.createIndex('by_createdAt', 'createdAt', { unique: false })
+      // Version 2: results ストアを再作成（per-run スキーマ）
+      if (db.objectStoreNames.contains('results')) {
+        db.deleteObjectStore('results')
       }
+      const resultsStore = db.createObjectStore('results', { keyPath: 'id' })
+      resultsStore.createIndex('by_createdAt', 'createdAt', { unique: false })
     }
   })
 }
