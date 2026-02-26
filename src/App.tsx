@@ -317,6 +317,11 @@ export default function App() {
                       }}
                     />
                   )}
+                  <p className="region-select-hint">
+                    {lang === 'ja'
+                      ? 'マウスで領域をドラッグすると、その領域のみ認識をおこないます'
+                      : 'Drag to select a region and run OCR on that area only'}
+                  </p>
                 </div>
 
                 <div className="result-right">

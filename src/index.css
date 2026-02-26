@@ -688,6 +688,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .footer-author { font-size: 0.75rem; color: var(--color-text-secondary); }
 .footer-github { font-size: 0.75rem; }
 
+.region-select-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
 /* ─── Region OCR Dialog ──────────────────────────────────── */
 .region-ocr-backdrop {
   position: fixed;
