@@ -50,6 +50,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isReadyToProcess, setIsReadyToProcess] = useState(false)
   const [regionOCRDialog, setRegionOCRDialog] = useState<{
     cropDataUrl: string
     isProcessing: boolean
@@ -107,9 +108,9 @@ export default function App() {
     }
   }, [processFiles])
 
-  // processedImages更新時に自動でOCR開始
+  // 「認識を開始」が押されたら OCR 実行
   useEffect(() => {
-    if (processedImages.length === 0 || isProcessing) return
+    if (!isReadyToProcess || processedImages.length === 0 || isProcessing) return
 
     const runOCR = async () => {
       setIsProcessing(true)
@@ -151,10 +152,11 @@ export default function App() {
       }
 
       setIsProcessing(false)
+      setIsReadyToProcess(false)
     }
 
     runOCR()
-  }, [processedImages]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isReadyToProcess]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClear = () => {
     clearImages()
@@ -163,6 +165,7 @@ export default function App() {
     setSelectedBlock(null)
     resetState()
     setIsProcessing(false)
+    setIsReadyToProcess(false)
   }
 
   const handleHistorySelect = (run: DBRunEntry) => {
@@ -184,6 +187,7 @@ export default function App() {
   const isModelLoading = jobState.status === 'loading_model'
   const isWorking = isLoadingFiles || isProcessing
   const hasResults = sessionResults.length > 0
+  const hasPendingImages = processedImages.length > 0 && !isWorking && !hasResults
 
   return (
     <div className="app">
@@ -193,10 +197,12 @@ export default function App() {
         onOpenSettings={() => setShowSettings(true)}
         onOpenHistory={() => setShowHistory(true)}
         onLogoClick={handleClear}
+        onStartOCR={() => setIsReadyToProcess(true)}
+        canStartOCR={hasPendingImages}
       />
 
       <main className="main">
-        {!hasResults && !isWorking && !isModelLoading && (
+        {!hasResults && !isWorking && !isModelLoading && !hasPendingImages && (
           <section className="upload-section">
             <FileDropZone onFilesSelected={handleFilesSelected} lang={lang} disabled={isWorking} />
             <div className="upload-actions">
@@ -208,6 +214,26 @@ export default function App() {
                 {lang === 'ja' ? 'サンプルを試す' : 'Try Sample'}
               </button>
             </div>
+          </section>
+        )}
+
+        {hasPendingImages && (
+          <section className="pending-section">
+            <div className="pending-grid">
+              {processedImages.map((img, i) => (
+                <div key={i} className="pending-item">
+                  <img src={img.thumbnailDataUrl} alt={img.fileName} className="pending-thumb" />
+                  <span className="pending-item-name">
+                    {img.pageIndex ? `${img.fileName} (p.${img.pageIndex})` : img.fileName}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="pending-hint">
+              {lang === 'ja'
+                ? `${processedImages.length} 件の画像を読み込みました`
+                : `${processedImages.length} image(s) loaded`}
+            </p>
           </section>
         )}
 
