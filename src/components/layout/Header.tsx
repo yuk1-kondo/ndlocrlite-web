@@ -5,17 +5,18 @@ interface HeaderProps {
   onToggleLanguage: () => void
   onOpenSettings: () => void
   onOpenHistory: () => void
+  onLogoClick: () => void
 }
 
-export function Header({ lang, onToggleLanguage, onOpenSettings, onOpenHistory }: HeaderProps) {
+export function Header({ lang, onToggleLanguage, onOpenSettings, onOpenHistory, onLogoClick }: HeaderProps) {
   return (
     <header className="header">
-      <div className="header-title">
+      <button className="header-title" onClick={onLogoClick}>
         <h1>NDLOCR-Lite Web</h1>
         <span className="header-subtitle">
           {lang === 'ja' ? 'ブラウザで動く日本語OCR' : 'Japanese OCR in the Browser'}
         </span>
-      </div>
+      </button>
       <div className="header-actions">
         <button className="btn-icon" onClick={onOpenHistory} title={lang === 'ja' ? '処理履歴' : 'History'}>
           📋

@@ -74,10 +74,24 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   z-index: 100;
 }
 
+.header-title {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+  transition: opacity 0.15s;
+}
+.header-title:hover { opacity: 0.75; }
+
 .header-title h1 {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-primary);
+  margin: 0;
 }
 
 .header-subtitle {

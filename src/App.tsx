@@ -192,6 +192,7 @@ export default function App() {
         onToggleLanguage={toggleLanguage}
         onOpenSettings={() => setShowSettings(true)}
         onOpenHistory={() => setShowHistory(true)}
+        onLogoClick={handleClear}
       />
 
       <main className="main">
