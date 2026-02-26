@@ -192,11 +192,12 @@ export function useOCRWorker() {
       return
     }
 
+    const activeWorkers = Math.min(recWorkers.length, textRegions.length)
     setJobState((prev) => ({
       ...prev,
       stageProgress: 0.4,
       stage: 'text_recognition',
-      message: `Recognizing text in ${textRegions.length} regions...`,
+      message: `Recognizing text in ${textRegions.length} regions (${activeWorkers} threads)...`,
     }))
 
     // インデックス均等分割（round-robin）
