@@ -16,18 +16,26 @@ interface ReadingOrderOptions {
 }
 
 export class ReadingOrderProcessor {
-  private readingDirection: ReadingDirection = 'vertical'
   private columnDirection: ColumnDirection = 'right-to-left'
+
+  /** width < height のブロックが半数以上なら縦書きと判定（参照実装 reorder.py:110 と等価） */
+  private detectIsVertical(blocks: TextBlock[]): boolean {
+    const verticalCount = blocks.filter(b => b.width < b.height).length
+    return verticalCount * 2 >= blocks.length
+  }
+
+  /** 縦書き→幅の中央値×0.3、横書き→高さの中央値×0.3（参照実装 reorder.py:113-114 と等価） */
+  private calcThreshold(blocks: TextBlock[], isVertical: boolean): number {
+    const sizes = isVertical ? blocks.map(b => b.width) : blocks.map(b => b.height)
+    const sorted = [...sizes].sort((a, b) => a - b)
+    const median = sorted[Math.floor(sorted.length / 2)]
+    return Math.max(median * 0.3, 1)
+  }
 
   process(textBlocks: TextBlock[], options: ReadingOrderOptions = {}): TextBlock[] {
     if (!textBlocks || textBlocks.length === 0) return []
 
-    const {
-      readingDirection = this.readingDirection,
-      columnDirection = this.columnDirection,
-      groupThreshold = 20,
-      minConfidence = 0.1,
-    } = options
+    const { minConfidence = 0.1 } = options
 
     const validBlocks = textBlocks.filter(
       (b) => b.confidence >= minConfidence && b.text && b.text.trim().length > 0
@@ -35,11 +43,23 @@ export class ReadingOrderProcessor {
 
     if (validBlocks.length === 0) return []
 
+    // 方向の自動判定（options で明示された場合はそちらを優先）
+    const isVertical = options.readingDirection
+      ? options.readingDirection === 'vertical'
+      : this.detectIsVertical(validBlocks)
+
+    // スケール適応型の閾値（options で明示された場合はそちらを優先）
+    const threshold = options.groupThreshold ?? this.calcThreshold(validBlocks, isVertical)
+
+    // 横書き自動判定時は left-to-right をデフォルトに
+    const colDir: ColumnDirection = options.columnDirection
+      ?? (isVertical ? this.columnDirection : 'left-to-right')
+
     let ordered: TextBlock[]
-    if (readingDirection === 'vertical') {
-      ordered = this.processVertical(validBlocks, columnDirection, groupThreshold)
+    if (isVertical) {
+      ordered = this.processVertical(validBlocks, colDir, threshold)
     } else {
-      ordered = this.processHorizontal(validBlocks, columnDirection, groupThreshold)
+      ordered = this.processHorizontal(validBlocks, colDir, threshold)
     }
 
     return ordered.map((block, index) => ({ ...block, readingOrder: index + 1 }))
