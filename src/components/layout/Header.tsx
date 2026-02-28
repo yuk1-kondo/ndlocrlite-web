@@ -14,9 +14,9 @@ export function Header({ lang, onToggleLanguage, onOpenSettings, onOpenHistory, 
   return (
     <header className="header">
       <button className="header-title" onClick={onLogoClick}>
-        <h1>NDLOCR-Lite Web</h1>
+        <h1>YK-OCR</h1>
         <span className="header-subtitle">
-          {lang === 'ja' ? 'ブラウザで動く日本語OCR' : 'Japanese OCR in the Browser'}
+          {lang === 'ja' ? 'ブラウザ完結・日本語OCR' : 'Japanese OCR — runs in your browser'}
         </span>
       </button>
       <div className="header-actions">
