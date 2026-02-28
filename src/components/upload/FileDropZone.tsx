@@ -22,26 +22,24 @@ export function FileDropZone({ onFilesSelected, lang, disabled = false }: FileDr
     <div
       className={`dropzone ${isDragging ? 'dragging' : ''} ${disabled ? 'disabled' : ''}`}
       onClick={() => !disabled && inputRef.current?.click()}
-      onDragOver={(e) => {
-        e.preventDefault()
-        if (!disabled) setIsDragging(true)
-      }}
+      onDragOver={(e) => { e.preventDefault(); if (!disabled) setIsDragging(true) }}
       onDragLeave={() => setIsDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault()
-        setIsDragging(false)
-        handleFiles(e.dataTransfer.files)
-      }}
+      onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files) }}
     >
-      <div className="dropzone-icon">📁</div>
+      <div className="dropzone-icon">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+          <path d="M12 12v9"/>
+          <path d="m8 17 4-5 4 5"/>
+        </svg>
+      </div>
+      <p className="dropzone-title">
+        {lang === 'ja' ? 'ファイルをドロップ' : 'Drop files here'}
+      </p>
       <p className="dropzone-text">
-        {lang === 'ja'
-          ? 'ここにファイルをドラッグ＆ドロップ、またはクリックして選択'
-          : 'Drag & drop files here, or click to select'}
+        {lang === 'ja' ? 'またはクリックして選択' : 'or click to browse'}
       </p>
-      <p className="dropzone-formats">
-        {lang === 'ja' ? '対応形式: JPG, PNG, PDF · Ctrl+V で貼り付け可' : 'Supported: JPG, PNG, PDF · Ctrl+V to paste'}
-      </p>
+      <p className="dropzone-formats">JPG &nbsp;·&nbsp; PNG &nbsp;·&nbsp; PDF</p>
       <input
         ref={inputRef}
         type="file"

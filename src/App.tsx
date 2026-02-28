@@ -229,6 +229,22 @@ export default function App() {
       <main className="main">
         {!hasResults && !isWorking && !isModelLoading && !hasPendingImages && (
           <section className="upload-section">
+            <div className="hero">
+              <h2 className="hero-title">
+                {lang === 'ja' ? '画像・PDFを文字に変換' : 'Convert Images & PDFs to Text'}
+              </h2>
+              <p className="hero-desc">
+                {lang === 'ja'
+                  ? 'ブラウザだけで完結する日本語OCR。ファイルは外部に送信されません。'
+                  : 'Japanese OCR that runs entirely in your browser. Files never leave your device.'}
+              </p>
+              <div className="hero-badges">
+                <span className="badge">🔒 {lang === 'ja' ? 'ローカル処理' : 'Local Processing'}</span>
+                <span className="badge">📄 PDF対応</span>
+                <span className="badge">🗂 バッチ処理</span>
+                <span className="badge">✨ {lang === 'ja' ? '高精度AI' : 'High-accuracy AI'}</span>
+              </div>
+            </div>
             <FileDropZone onFilesSelected={handleFilesSelected} lang={lang} disabled={isWorking} />
             <div className="upload-actions">
               <DirectoryPicker onFilesSelected={handleFilesSelected} lang={lang} disabled={isWorking} />
