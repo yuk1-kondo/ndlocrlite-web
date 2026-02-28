@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import type { OCRJobState } from '../../types/ocr'
 
 interface ProgressBarProps {
@@ -12,6 +13,8 @@ const MODEL_LABELS = {
     rec50: '文字認識モデル（≤50文字）',
     rec100: '文字認識モデル（≤100文字）',
     downloading: 'モデルをダウンロード中',
+    initializing: 'モデルを準備中（初回のみ時間がかかります）',
+    elapsed: '経過時間',
   },
   en: {
     layout: 'Layout detection model',
@@ -19,11 +22,23 @@ const MODEL_LABELS = {
     rec50: 'Recognition model (≤50 chars)',
     rec100: 'Recognition model (≤100 chars)',
     downloading: 'Downloading models',
+    initializing: 'Preparing models (first time only, please wait...)',
+    elapsed: 'Elapsed',
   },
 }
 
 export function ProgressBar({ jobState, lang }: ProgressBarProps) {
   const { status, currentFileIndex, totalFiles, stageProgress, stage, message, modelProgress } = jobState
+  const [elapsedSec, setElapsedSec] = useState(0)
+
+  const isInitializing = stage === 'initializing_models' || stage === 'initializing'
+
+  useEffect(() => {
+    if (!isInitializing) { setElapsedSec(0); return }
+    setElapsedSec(0)
+    const timer = setInterval(() => setElapsedSec(s => s + 1), 1000)
+    return () => clearInterval(timer)
+  }, [isInitializing])
 
   if (status === 'idle') return null
 
@@ -31,6 +46,23 @@ export function ProgressBar({ jobState, lang }: ProgressBarProps) {
   const isDone = status === 'done'
   const isDownloading = stage === 'loading_models' && modelProgress != null
   const labels = MODEL_LABELS[lang]
+
+  if (isInitializing) {
+    return (
+      <div className="progress-container">
+        <div className="progress-title">{labels.initializing}</div>
+        <div className="progress-bar-track">
+          <div className="progress-bar-fill progress-bar-shimmer" style={{ width: `${Math.min(100, stageProgress * 100)}%` }} />
+        </div>
+        <div className="progress-message">
+          {message}
+          {elapsedSec >= 5 && (
+            <span className="progress-elapsed"> — {labels.elapsed}: {elapsedSec}s</span>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   if (isDownloading) {
     return (
