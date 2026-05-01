@@ -1,17 +1,17 @@
 /**
  * OCR Web Worker
- * バックグラウンドでOCR処理を実行
- * 参照実装: ndlkotenocr-worker/src/worker/ocr-worker.js
+ * バックグラウンドでOCR処�?を実�?
+ * 参�?�実�?: ndlkotenocr-worker/src/worker/ocr-worker.js
  *
- * メッセージ種別:
- *   OCR_PROCESS   : 領域OCR用（逐次認識。processRegion で使用）
- *   LAYOUT_DETECT : バッチOCR用（レイアウト検出のみ実行し LAYOUT_DONE を返す）
- *                   認識フェーズはメインスレッドが N 本の recognition.worker に並列委譲する
+ * メ�?セージ種別:
+ *   OCR_PROCESS   : 領域OCR用?��逐次認識。processRegion で使用?�?
+ *   LAYOUT_DETECT : バッチOCR用?��レイアウト検�?�のみ実行し LAYOUT_DONE を返す?�?
+ *                   認識フェーズはメインスレ�?ドが N 本の recognition.worker に並列委譲する
  *
- * カスケード文字認識:
- *   charCountCategory=3 → recognizer30 (16×256, ≤30文字)
- *   charCountCategory=2 → recognizer50 (16×384, ≤50文字)
- *   それ以外            → recognizer100 (16×768, ≤100文字)
+ * カスケード文字認�?:
+ *   charCountCategory=3 �? recognizer30 (24�?256, ≤30�?�?)
+ *   charCountCategory=2 �? recognizer50 (24�?384, ≤50�?�?)
+ *   それ以�?            �? recognizer100 (24�?768, ≤100�?�?)
  */
 
 import './onnx-config'
@@ -24,9 +24,9 @@ import type { WorkerInMessage, WorkerOutMessage } from '../types/worker'
 
 class OCRWorker {
   private layoutDetector: LayoutDetector | null = null
-  private recognizer30: TextRecognizer | null = null  // ≤30文字 [1,3,16,256]
-  private recognizer50: TextRecognizer | null = null  // ≤50文字 [1,3,16,384]
-  private recognizer100: TextRecognizer | null = null // ≤100文字 [1,3,16,768]
+  private recognizer30: TextRecognizer | null = null  // ≤30�?�? [1,3,24,256]
+  private recognizer50: TextRecognizer | null = null  // ≤50�?�? [1,3,24,384]
+  private recognizer100: TextRecognizer | null = null // ≤100�?�? [1,3,24,768]
   private readingOrderProcessor = new ReadingOrderProcessor()
   private isInitialized = false
 
@@ -45,7 +45,7 @@ class OCRWorker {
         message: 'Initializing...',
       })
 
-      // 4モデルを並列ダウンロード（各モデルの進捗を合算してレポート）
+      // 4モ�?ルを並列ダウンロード（各モ�?ルの進捗を合算してレポ�?�ト�?
       const progresses = { layout: 0, rec30: 0, rec50: 0, rec100: 0 }
       const reportProgress = () => {
         const avg = (progresses.layout + progresses.rec30 + progresses.rec50 + progresses.rec100) / 4
@@ -65,21 +65,21 @@ class OCRWorker {
         loadModel('recognition100',(p) => { progresses.rec100 = p; reportProgress() }),
       ])
 
-      // ONNXセッション作成（WASMシングルスレッドのため直列）
+      // ONNXセ�?ション作�?��?WASMシングルスレ�?ド�?�ため直列�?
       this.post({ type: 'OCR_PROGRESS', stage: 'initializing_models', progress: 0.76, message: 'Preparing layout model...' })
       this.layoutDetector = new LayoutDetector()
       await this.layoutDetector.initialize(layoutModelData)
 
       this.post({ type: 'OCR_PROGRESS', stage: 'initializing_models', progress: 0.83, message: 'Preparing recognition model (30)...' })
-      this.recognizer30 = new TextRecognizer([1, 3, 16, 256])
+      this.recognizer30 = new TextRecognizer([1, 3, 24, 256])
       await this.recognizer30.initialize(rec30Data)
 
       this.post({ type: 'OCR_PROGRESS', stage: 'initializing_models', progress: 0.90, message: 'Preparing recognition model (50)...' })
-      this.recognizer50 = new TextRecognizer([1, 3, 16, 384])
+      this.recognizer50 = new TextRecognizer([1, 3, 24, 384])
       await this.recognizer50.initialize(rec50Data)
 
       this.post({ type: 'OCR_PROGRESS', stage: 'initializing_models', progress: 0.96, message: 'Preparing recognition model (100)...' })
-      this.recognizer100 = new TextRecognizer([1, 3, 16, 768])
+      this.recognizer100 = new TextRecognizer([1, 3, 24, 768])
       await this.recognizer100.initialize(rec100Data)
 
       this.isInitialized = true
@@ -100,21 +100,21 @@ class OCRWorker {
     }
   }
 
-  /** charCountCategory に応じたモデルを選択 */
+  /** charCountCategory に応じたモ�?ルを選�? */
   private selectRecognizer(charCountCategory?: number): TextRecognizer {
     if (charCountCategory === 3) return this.recognizer30!
     if (charCountCategory === 2) return this.recognizer50!
     return this.recognizer100!
   }
 
-  /** 領域OCR用: レイアウト検出 + 逐次認識 + 読み順処理 (processRegion から使用) */
+  /** 領域OCR用: レイアウト検�?� + 逐次認�? + 読み�?処�? (processRegion から使用) */
   async processOCR(id: string, imageData: ImageData, startTime: number): Promise<void> {
     try {
       if (!this.isInitialized) {
         await this.initialize()
       }
 
-      // Stage 1: レイアウト検出
+      // Stage 1: レイアウト検�?�
       this.post({
         type: 'OCR_PROGRESS',
         id,
@@ -136,7 +136,7 @@ class OCRWorker {
         }
       )
 
-      // Stage 2: 逐次文字認識
+      // Stage 2: 逐次�?字認�?
       this.post({
         type: 'OCR_PROGRESS',
         id,
@@ -166,7 +166,7 @@ class OCRWorker {
         })
       }
 
-      // Stage 3: 読み順処理
+      // Stage 3: 読み�?処�?
       this.post({
         type: 'OCR_PROGRESS',
         id,
@@ -177,7 +177,7 @@ class OCRWorker {
 
       const orderedResults = this.readingOrderProcessor.process(recognitionResults)
 
-      // Stage 4: 出力生成
+      // Stage 4: 出力生�?
       this.post({
         type: 'OCR_PROGRESS',
         id,
@@ -207,7 +207,7 @@ class OCRWorker {
     }
   }
 
-  /** バッチOCR用: レイアウト検出のみ実行し LAYOUT_DONE を返す (processImage から使用) */
+  /** バッチOCR用: レイアウト検�?�のみ実行し LAYOUT_DONE を返す (processImage から使用) */
   async detectLayout(id: string, imageData: ImageData, startTime: number): Promise<void> {
     try {
       if (!this.isInitialized) {
@@ -235,7 +235,7 @@ class OCRWorker {
         }
       )
 
-      // 各領域を事前クロップ（メインスレッドに Transferable で返す）
+      // �?領域を事前クロ�?プ（メインスレ�?ドに Transferable で返す?�?
       const croppedImages = textRegions.map(region => TextRecognizer.cropImageData(imageData, region))
       const transferables = croppedImages.map(img => img.data.buffer)
 

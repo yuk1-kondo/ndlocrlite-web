@@ -1,6 +1,6 @@
 /**
  * 認識専用 Web Worker
- * rec30 / rec50 / rec100 の3モデルを保持し、charCountCategory に応じて使い分ける
+ * rec30 / rec50 / rec100 の3モ�?ルを保持し、charCountCategory に応じて使�?�?ける
  */
 
 import './onnx-config'
@@ -35,9 +35,9 @@ self.onmessage = async (e: MessageEvent<RecWorkerInMessage>) => {
         loadModel('recognition100', (p) => { progresses[2] = p; reportProgress() }),
       ])
 
-      rec30  = new TextRecognizer([1, 3, 16, 256]); await rec30.initialize(d30)
-      rec50  = new TextRecognizer([1, 3, 16, 384]); await rec50.initialize(d50)
-      rec100 = new TextRecognizer([1, 3, 16, 768]); await rec100.initialize(d100)
+      rec30  = new TextRecognizer([1, 3, 24, 256]); await rec30.initialize(d30)
+      rec50  = new TextRecognizer([1, 3, 24, 384]); await rec50.initialize(d50)
+      rec100 = new TextRecognizer([1, 3, 24, 768]); await rec100.initialize(d100)
 
       self.postMessage({ type: 'REC_READY' } satisfies RecWorkerOutMessage)
     } catch (err) {

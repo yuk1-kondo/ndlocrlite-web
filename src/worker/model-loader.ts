@@ -1,25 +1,26 @@
 /**
- * モデルファイルのダウンロード・IndexedDBキャッシュ管理
- * 参照実装: ndlkotenocr-worker/src/utils/model-loader.js
+ * モ�?ルファイルのダウンロード�?�IndexedDBキャ�?シュ管�?
+ * 参�?�実�?: ndlkotenocr-worker/src/utils/model-loader.js
  */
 
 const DB_NAME = 'NDLOCRLiteDB'
 const DB_VERSION = 2
 const STORE_NAME = 'models'
 
-// モデルのバージョン（URLが変わったらここを更新）
-export const MODEL_VERSION = '1.0.0'
+// モ�?ルのバ�?�ジョン?�?URLが変わったらここを更新?�?
+// v1.2.1: PARSeq 24x* モ�?ルに書き込えたためキャ�?シュを餉わずる
+export const MODEL_VERSION = '1.2.1'
 
-// モデル配信ベースURL（環境変数 VITE_MODEL_BASE_URL で指定、末尾スラッシュなし）
+// モ�?ル配信ベ�?�スURL?��環�?変数 VITE_MODEL_BASE_URL で�?定、末尾スラ�?シュなし�?
 const MODEL_BASE_URL = (import.meta.env.VITE_MODEL_BASE_URL as string | undefined) ?? ''
 
-// ONNXモデルのURL
+// ONNXモ�?ルのURL
 export const MODEL_URLS: Record<string, string> = {
   layout: `${MODEL_BASE_URL}/deim-s-1024x1024.onnx`,
-  // カスケード文字認識モデル（行の文字数カテゴリに応じて使い分け）
-  recognition30: `${MODEL_BASE_URL}/parseq-ndl-30.onnx`,  // カテゴリ3: ≤30文字 [1,3,16,256]
-  recognition50: `${MODEL_BASE_URL}/parseq-ndl-50.onnx`,  // カテゴリ2: ≤50文字 [1,3,16,384]
-  recognition100: `${MODEL_BASE_URL}/parseq-ndl-100.onnx`, // カテゴリ1: ≤100文字 [1,3,16,768]
+  // カスケード文字認識モ�?ル?��行�?��?字数カ�?ゴリに応じて使�?�?け�?
+  recognition30: `${MODEL_BASE_URL}/parseq-ndl-30.onnx`,  // カ�?ゴリ3: ≤30�?�? [1,3,24,256]
+  recognition50: `${MODEL_BASE_URL}/parseq-ndl-50.onnx`,  // カ�?ゴリ2: ≤50�?�? [1,3,24,384]
+  recognition100: `${MODEL_BASE_URL}/parseq-ndl-100.onnx`, // カ�?ゴリ1: ≤100�?�? [1,3,24,768]
 }
 
 function initDB(): Promise<IDBDatabase> {
@@ -34,7 +35,7 @@ function initDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('models')) {
         db.createObjectStore('models', { keyPath: 'name' })
       }
-      // Version 2: results ストアを再作成（per-run スキーマ）
+      // Version 2: results ストアを�?�作�?��?per-run スキーマ�?
       if (db.objectStoreNames.contains('results')) {
         db.deleteObjectStore('results')
       }
@@ -95,7 +96,7 @@ async function downloadWithProgress(
     throw new Error(`HTTP error! status: ${response.status}`)
   }
 
-  // SPAフォールバックでHTMLが返った場合（モデルファイルが存在しない）を検出
+  // SPAフォールバックでHTMLが返った�?�合（モ�?ルファイルが存在しな�??��を検�?�
   const contentType = response.headers.get('content-type') ?? ''
   if (contentType.includes('text/html')) {
     throw new Error(`Model file not found (HTML returned): ${url}`)

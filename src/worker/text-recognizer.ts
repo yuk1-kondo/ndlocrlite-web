@@ -1,6 +1,6 @@
 /**
- * 文字認識モジュール（PARSeqモデル）
- * 参照実装: ndlkotenocr-worker/src/worker/text-recognizer.js
+ * �?字認識モジュール?�?PARSeqモ�?ル?�?
+ * 参�?�実�?: ndlkotenocr-worker/src/worker/text-recognizer.js
  */
 
 import * as yaml from 'js-yaml'
@@ -27,7 +27,7 @@ export class TextRecognizer {
 
   constructor(inputShape?: [number, number, number, number]) {
     this.config = {
-      inputShape: inputShape ?? [1, 3, 16, 384],
+      inputShape: inputShape ?? [1, 3, 24, 384],
       charList: [],
       maxLength: 25,
     }
@@ -110,7 +110,7 @@ export class TextRecognizer {
     const imgWidth = imageData.width
     const imgHeight = imageData.height
 
-    // 縦長画像は90度回転（反時計回り）
+    // 縦長画像�?�90度回転?��反時計回り�?
     const canvas = new OffscreenCanvas(1, 1)
     const ctx = canvas.getContext('2d')!
 
@@ -130,7 +130,7 @@ export class TextRecognizer {
     tempCtx.putImageData(imageData, 0, 0)
     ctx.drawImage(tempCanvas, 0, 0)
 
-    // モデル入力サイズにリサイズ
+    // モ�?ル入力サイズにリサイズ
     const resizeCanvas = new OffscreenCanvas(width, height)
     const resizeCtx = resizeCanvas.getContext('2d')!
     resizeCtx.drawImage(canvas, 0, 0, width, height)
@@ -138,7 +138,7 @@ export class TextRecognizer {
     const resized = resizeCtx.getImageData(0, 0, width, height)
     const { data } = resized
 
-    // Float32Array: [-1, 1] 正規化 (NCHW形式)
+    // Float32Array: [-1, 1] 正規化 (NCHW形�?)
     const tensorData = new Float32Array(channels * height * width)
     for (let h = 0; h < height; h++) {
       for (let w = 0; w < width; w++) {
@@ -173,15 +173,15 @@ export class TextRecognizer {
         const maxScore = Math.max(...scores)
         const maxIndex = scores.indexOf(maxScore)
 
-        // <eos> (ID=0) で終了
+        // <eos> (ID=0) で終�?
         if (maxIndex === 0) break
-        // 特殊トークン (<s>=1, </s>=2, <pad>=3) をスキップ
+        // 特殊トークン (<s>=1, </s>=2, <pad>=3) をスキ�?�?
         if (maxIndex < 4) continue
 
         resultClassIds.push(maxIndex - 1)
       }
 
-      // 連続重複を除去してテキスト生成
+      // 連続重�?を除去して�?キスト生�?
       const resultChars: string[] = []
       let prevId = -1
       for (const id of resultClassIds) {
